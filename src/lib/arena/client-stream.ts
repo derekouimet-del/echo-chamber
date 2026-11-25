@@ -84,6 +84,17 @@ export async function streamTurn(
   }
 }
 
+let speaker: HTMLAudioElement | null = null;
+let releaseCurrent: (() => void) | null = null;
+
+export function primeAudio() {
+  if (typeof window === "undefined") return;
+  speaker ??= new Audio();
+  speaker.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+  const started = speaker.play();
+  if (started) void started.then(() => speaker?.pause()).catch(() => {});
+}
+
 export async function playSpeech(input: {
   text: string;
   voiceProvider: "house" | "elevenlabs" | "openai";
@@ -99,7 +110,28 @@ export async function playSpeech(input: {
   if (!res.ok) throw new Error(await res.text());
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
-  audio.onended = () => URL.revokeObjectURL(url);
-  await audio.play();
+  releaseCurrent?.();
+  speaker ??= new Audio();
+  speaker.src = url;
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (releaseCurrent === finish) releaseCurrent = null;
+      URL.revokeObjectURL(url);
+      resolve();
+    };
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      if (releaseCurrent === finish) releaseCurrent = null;
+      URL.revokeObjectURL(url);
+      reject(err instanceof Error ? err : new Error("Playback failed"));
+    };
+    releaseCurrent = finish;
+    speaker!.onended = finish;
+    speaker!.onerror = () => fail(new Error("Playback failed"));
+    void speaker!.play().catch(fail);
+  });
 }

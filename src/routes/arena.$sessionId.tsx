@@ -102,6 +102,42 @@ function Arena() {
     };
   }, [running, session.id, session.status]);
 
+  useEffect(() => {
+    const id = session.id;
+    let ticks = 0;
+    const timer = window.setInterval(() => {
+      ticks += 1;
+      if (ticks > 12) {
+        window.clearInterval(timer);
+        return;
+      }
+      void getSessionBundle({ data: { id } })
+        .then((fresh) => {
+          setSession((prev) => {
+            if (prev.id !== id) return prev;
+            const portraitA = fresh.session.agentA.portraitUrl;
+            const portraitB = fresh.session.agentB.portraitUrl;
+            const backdrop = fresh.session.design?.backdropUrl ?? null;
+            if (
+              portraitA === prev.agentA.portraitUrl &&
+              portraitB === prev.agentB.portraitUrl &&
+              (prev.design?.backdropUrl ?? null) === backdrop
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              design: prev.design ? { ...prev.design, backdropUrl: backdrop } : fresh.session.design,
+              agentA: { ...prev.agentA, portraitUrl: portraitA },
+              agentB: { ...prev.agentB, portraitUrl: portraitB },
+            };
+          });
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [session.id]);
+
   async function runLoop() {
     runRef.current?.abort();
     const controller = new AbortController();
@@ -110,6 +146,7 @@ function Arena() {
     setError(null);
     const speakerRef = { current: "a" as "a" | "b" };
     try {
+      await speakColdOpen(sessionRef.current);
       while (!controller.signal.aborted) {
         let text = "";
         const current = sessionRef.current;
@@ -139,7 +176,7 @@ function Arena() {
         }
         if (outcome.message) {
           setMessages((prev) => (prev.some((m) => m.id === outcome.message!.id) ? prev : [...prev, outcome.message!]));
-          void maybeSpeak(outcome.message, outcome.session ?? current);
+          await maybeSpeak(outcome.message, outcome.session ?? current);
         }
         if (outcome.session) {
           setSession(outcome.session);
@@ -456,6 +493,19 @@ function keysFor(session: Session): Record<string, string> {
     if (vault[id]) out[id] = vault[id];
   }
   return out;
+}
+
+async function speakColdOpen(session: Session) {
+  if (!useVault.getState().voiceOn) return;
+  const line = session.design?.coldOpen?.trim();
+  if (!line) return;
+  const taken = new Set([session.agentA.voiceId, session.agentB.voiceId]);
+  const voiceId = taken.has("eve") ? "sal" : "eve";
+  try {
+    await playSpeech({ text: line, voiceProvider: "house", voiceId });
+  } catch {
+    // A blocked cold open should not stop the debate.
+  }
 }
 
 async function maybeSpeak(message: TurnMessage, session: Session) {

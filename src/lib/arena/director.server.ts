@@ -1,6 +1,6 @@
 import type { Character, CharacterDraft, StageDesign } from "./types";
 import { houseImage, houseJson } from "./llm.server";
-import { getCharacter, getMessages, getSession, memoriesFor, saveAnalysis, setPortrait } from "./store.server";
+import { applyVisuals, getCharacter, getMessages, getSession, memoriesFor, saveAnalysis, setPortrait } from "./store.server";
 
 const PERSONA_KEYS = [
   "name",
@@ -107,6 +107,24 @@ export async function paintBackdrop(design: StageDesign, topic: string): Promise
     .filter(Boolean)
     .join(" ");
   return houseImage(prompt);
+}
+
+export async function dressSession(sessionId: string) {
+  const session = await getSession(sessionId);
+  if (!session) throw new Error("Session not found.");
+  const [paintedA, paintedB] = await Promise.all([
+    session.agentA.characterId ? paintPortrait(session.agentA.characterId).catch(() => null) : Promise.resolve(null),
+    session.agentB.characterId ? paintPortrait(session.agentB.characterId).catch(() => null) : Promise.resolve(null),
+  ]);
+  let backdrop: string | null = null;
+  if (session.design) {
+    backdrop = await paintBackdrop(session.design, session.topic).catch(() => null);
+  }
+  return applyVisuals(sessionId, {
+    portraitA: paintedA?.portraitUrl ?? null,
+    portraitB: paintedB?.portraitUrl ?? null,
+    backdropUrl: backdrop,
+  });
 }
 
 export async function analyzeSession(sessionId: string) {

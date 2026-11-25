@@ -137,6 +137,13 @@ export const paintBackdropFn = createServerFn({ method: "POST" })
     return { url };
   });
 
+export const dressSessionFn = createServerFn({ method: "POST" })
+  .validator((input: { id: string }) => input)
+  .handler(async ({ data }) => {
+    const { dressSession } = await import("./director.server");
+    return dressSession(data.id);
+  });
+
 export const getMemories = createServerFn({ method: "POST" })
   .validator((input: { characterId: string }) => input)
   .handler(async ({ data }) => {

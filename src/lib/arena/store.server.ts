@@ -675,6 +675,31 @@ export async function saveDesign(id: string, design: StageDesign): Promise<Sessi
   return session;
 }
 
+export async function applyVisuals(
+  id: string,
+  visuals: { portraitA?: string | null; portraitB?: string | null; backdropUrl?: string | null },
+): Promise<Session> {
+  const sql = await getSql();
+  const session = await getSession(id);
+  if (!session) throw new Error("Session not found.");
+  const agentA = { ...session.agentA, portraitUrl: visuals.portraitA || session.agentA.portraitUrl };
+  const agentB = { ...session.agentB, portraitUrl: visuals.portraitB || session.agentB.portraitUrl };
+  const design = session.design
+    ? { ...session.design, backdropUrl: visuals.backdropUrl || session.design.backdropUrl }
+    : session.design;
+  await sql`
+    update sessions set
+      agent_a = ${JSON.stringify(agentA)},
+      agent_b = ${JSON.stringify(agentB)},
+      design = ${design ? JSON.stringify(design) : null},
+      updated_at = now()
+    where id = ${id}
+  `;
+  const next = await getSession(id);
+  if (!next) throw new Error("Session not found.");
+  return next;
+}
+
 export async function dashboard() {
   await ensureSeed();
   const sql = await getSql();

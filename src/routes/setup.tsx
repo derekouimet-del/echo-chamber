@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { primeAudio } from "@/lib/arena/client-stream";
 import { HOUSE_ID, MODE_META, TOPIC_PRESETS } from "@/lib/arena/cast";
+import { dealRandomFloor } from "@/lib/arena/deal";
 import { createSessionFn, deleteSetupFn, getSetupData, paintBackdropFn, saveSetupFn, stageShowdownFn } from "@/lib/arena/functions";
 import { toSnapshot } from "@/lib/arena/snapshot";
 import type { Mode, StageDesign } from "@/lib/arena/types";
@@ -369,9 +371,35 @@ function Stage() {
         </div>
       </Panel>
 
-      <Button tone="lime" disabled={busy !== null} onClick={() => void launch()} className="px-6">
-        {busy === "launch" ? "Opening…" : "Open the floor"}
-      </Button>
+      <div className="flex flex-wrap gap-3">
+        <Button tone="lime" disabled={busy !== null} onClick={() => void launch()} className="px-6">
+          {busy === "launch" ? "Opening…" : "Open the floor"}
+        </Button>
+        <Button
+          disabled={busy !== null}
+          onClick={() => {
+            primeAudio();
+            setBusy("deal");
+            void dealRandomFloor(
+              { exchanges: maxExchanges, budget: tokenBudget, speed: speedMs, minutes: maxMinutes },
+              providers,
+            )
+              .then((sessionId) =>
+                navigate({
+                  to: "/arena/$sessionId",
+                  params: { sessionId },
+                  search: { autostart: true, play: false },
+                }),
+              )
+              .catch((err) => {
+                toast.error(err instanceof Error ? err.message : "Could not deal a floor");
+                setBusy(null);
+              });
+          }}
+        >
+          {busy === "deal" ? "Casting…" : "Random floor"}
+        </Button>
+      </div>
     </div>
   );
 }

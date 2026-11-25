@@ -211,6 +211,43 @@ var Cpu = createLucideIcon("cpu", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Dices = createLucideIcon("dices", [
+	["rect", {
+		width: "12",
+		height: "12",
+		x: "2",
+		y: "10",
+		rx: "2",
+		ry: "2",
+		key: "6agr2n"
+	}],
+	["path", {
+		d: "m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6",
+		key: "1o487t"
+	}],
+	["path", {
+		d: "M6 18h.01",
+		key: "uhywen"
+	}],
+	["path", {
+		d: "M10 14h.01",
+		key: "ssrbsk"
+	}],
+	["path", {
+		d: "M15 6h.01",
+		key: "cblpky"
+	}],
+	["path", {
+		d: "M18 9h.01",
+		key: "2061c0"
+	}]
+]);
+/**
+* @license lucide-react v0.510.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Download = createLucideIcon("download", [
 	["path", {
 		d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
@@ -571,4 +608,4 @@ var Volume2 = createLucideIcon("volume-2", [
 	}]
 ]);
 //#endregion
-export { Cpu as _, Star as a, Shuffle as c, Play as d, Pause as f, Download as g, Eye as h, Swords as i, Settings as l, LayoutDashboard as m, Users as n, Square as o, Library as p, TriangleAlert as r, Sparkles as s, Volume2 as t, RotateCcw as u, Brain as v, ArrowRight as y };
+export { Dices as _, Star as a, ArrowRight as b, Shuffle as c, Play as d, Pause as f, Download as g, Eye as h, Swords as i, Settings as l, LayoutDashboard as m, Users as n, Square as o, Library as p, TriangleAlert as r, Sparkles as s, Volume2 as t, RotateCcw as u, Cpu as v, Brain as y };

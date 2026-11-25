@@ -103,7 +103,7 @@ var HEADERS = { TSS_SHELL: "X-TSS_SHELL" };
 * the dev styles URL for route-scoped CSS collection.
 */
 async function getStartManifest(matchedRoutes) {
-	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-MU0_yW1S.mjs");
+	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-CBnTBa4V.mjs");
 	const startManifest = tsrStartManifest();
 	let routes = startManifest.routes;
 	routes[rootRouteId];
@@ -125,135 +125,139 @@ async function getStartManifest(matchedRoutes) {
 var manifest = {
 	"064fc0733661a947c9bce9be72973be4987d44d15992f0506a9f9923ae5b2a81": {
 		functionName: "deleteProviderFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"06e32cc5931c334359983365d75ce69c915acf335af794b44cabfa467df79844": {
 		functionName: "paintBackdropFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"1256c694ad124c99dd6ed06c390a6af6d29dcb236e6d7f9c1c5decd766aaee1d": {
 		functionName: "deleteCharacterFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"3f14944cd659bcbf9691a2c7fb8456f0ff9e4a04d0e8719ecd1b31c591373388": {
 		functionName: "setStatusFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"42e9d10041b85567d6fa093870b1bcf25b94e7bbdc471d16ab396167a4aff98d": {
 		functionName: "getDashboard_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"444bdcef38ed8daba95f5ceabc4a5b5d80a47857a33e9edcf1fc45027fd61406": {
 		functionName: "advanceTurnFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"4d7c987fc3b743ed3c802d1236de0a12fadeb1b7d8a5afe187c6b342dff4203f": {
 		functionName: "saveCharacterFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"51520fddf7feb6227d0132ced2f4301bd2a649e9f6e65af325aed340a3fbbfb2": {
 		functionName: "createSessionFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"54f8587ff900f888f8cd00e39a32d978dc2232955a18bd5f2b600feda8d43f1f": {
 		functionName: "getSetupData_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"58bceacf6a1a866d08698e5026102b6bfd3d4519cb8feb2e316120e23099767f": {
 		functionName: "interveneFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"5a8c52669bc66c7d3eaf9b7aa13e8012e7f4c38dae6863e0c82bd22490de8aba": {
 		functionName: "deleteMemoryFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"6145b365271771ef71dbbaa471d6d15d5cd0cb283fbac9325051d016362b6514": {
 		functionName: "paintPortraitFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"624a5c796cac59276058c208cee5fdccd40e1e1daef48cdf00ed74ace2c10c44": {
 		functionName: "deleteSetupFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"699bf6dfe997a7fc4f8e9e65136e3cc7943a31a753e2fb7c7ee3b11f7a080cd6": {
 		functionName: "deleteSessionFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"708a13fa3d9162b4a177e23e2a467998b109f9fb69a33d9f8399773e89520c73": {
 		functionName: "getCharacters_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"75f5ddedbd0280883587e4c38f1e3adcca445158b261625cee0d1e12612b76a3": {
 		functionName: "getSessionBundle_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"7f1a870f6792fd8370136ecb8ec45b70f80c175b8ef26728b6094d957e07ec1d": {
 		functionName: "analyzeFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"932202348a226d11142006924dd20ce31af0122c75f5e1ab50dbb346ab3f5564": {
 		functionName: "getBoardFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"9872599b34e78b58d4b2578e013bc80616dc753991763bd8291005d7f714ef6f": {
 		functionName: "getProviders_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"a025009ae96df27814d5aab480f008d54783fa95acccf135ac7381b802280446": {
 		functionName: "rematchFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"bbca8622df69fd4ec027683bac76a659d505eef28cc06bed07101826a640249e": {
 		functionName: "getCompareFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"be39af3c115161fc736bb555b0c2961010141b185e5cec99d862963f3e62ad89": {
 		functionName: "getMemories_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"c46e8e5d37e02eb1bd667e8b19d5219e140a524f1cf808f725de3b917af699f1": {
 		functionName: "restoreTemplatesFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"c6f0460f5773d60808ae9e4854bdd5fadc5ca621ff8d46670bb6989dbd2b78ea": {
 		functionName: "distillFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"d36a8091412c50ffd2898d310d79623bf3726d87a37600ce8e1b1ae7efe286e3": {
 		functionName: "saveProviderFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"def1f02d5384aefaede4bd9fb162286dc4b954747eb73776ef74b4b65415b5b5": {
 		functionName: "listSessionsFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"e27875807e647f615b926c83f31c4b094bf2cace027e9ec56b661418001f1385": {
 		functionName: "testProviderFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"eb5a5db2bbe91744adc9753a339ef445a3ca15425d7d5e9c67be9a12874bec52": {
 		functionName: "houseStatusFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"ec4aafec0b65f5f5c7bafb276c4a82b08ab4d1a6aec6084b159282d749047762": {
 		functionName: "stageShowdownFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"ef71dc21f873779c7b674c2fbf9686cdab2225ae3f72b1a817b6765338f80e32": {
 		functionName: "authorCharacterFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"f2d14524db578c682933eed3c0f999bfd164bff9efe45916ec2edf203c33f185": {
 		functionName: "addMemoryFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"f677f84b7fd0abe18e63aa15e2471d8cdd325bd0ef34d5f5832ab44d4492dbf9": {
 		functionName: "clearMemoriesFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	},
 	"f84db70469466b81c2af2286a79bcc3991126478f74da562da3e50a6f41b566c": {
 		functionName: "saveSetupFn_createServerFn_handler",
-		importer: () => import("./functions-BPIaN4Kt.mjs")
+		importer: () => import("./functions-DY4sHjtJ.mjs")
+	},
+	"fa970d32f55f1f978e29c94fb974a5d74806caa7572eb6a96b2f0727bd3445e5": {
+		functionName: "dressSessionFn_createServerFn_handler",
+		importer: () => import("./functions-DY4sHjtJ.mjs")
 	}
 };
 async function getServerFnById(id, access) {
@@ -1658,7 +1662,7 @@ var getBaseManifest = getProdBaseManifest;
 var createEarlyHintsForRequest = createEarlyHintsCollector;
 async function loadEntries() {
 	const [routerEntry, startEntry, pluginAdapters] = await Promise.all([
-		import("./router-DdAlpZIy.mjs").then((n) => n.t),
+		import("./router-B60dYSLG.mjs").then((n) => n.t),
 		import("./start-5Z2QO8AU.mjs"),
 		import("./empty-plugin-adapters-D9UWiqvJ.mjs")
 	]);

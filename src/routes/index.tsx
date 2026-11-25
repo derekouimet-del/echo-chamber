@@ -1,9 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, Dices } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { primeAudio } from "@/lib/arena/client-stream";
+import { dealRandomFloor } from "@/lib/arena/deal";
 import { getDashboard } from "@/lib/arena/functions";
 import { MODE_META } from "@/lib/arena/cast";
+import { useVault } from "@/lib/arena/vault";
 import { formatWhen } from "@/lib/utils";
-import { Panel, Pill } from "@/components/ui";
+import { Button, Panel, Pill } from "@/components/ui";
 
 export const Route = createFileRoute("/")({
   loader: () => getDashboard(),
@@ -12,6 +17,8 @@ export const Route = createFileRoute("/")({
 
 function Floor() {
   const data = Route.useLoaderData();
+  const navigate = useNavigate();
+  const [dealing, setDealing] = useState(false);
   const stats = [
     { label: "Sessions", value: data.counts.sessions },
     { label: "Open floors", value: data.counts.open },
@@ -32,9 +39,39 @@ function Floor() {
             You direct. They do not share a brain unless you tell them to.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
+            <Button
+              tone="lime"
+              disabled={dealing}
+              className="px-4"
+              onClick={() => {
+                primeAudio();
+                setDealing(true);
+                const limits = useVault.getState();
+                void dealRandomFloor({
+                  exchanges: limits.defaultExchanges,
+                  budget: limits.defaultBudget,
+                  speed: limits.defaultSpeed,
+                  minutes: limits.defaultMinutes,
+                })
+                  .then((sessionId) =>
+                    navigate({
+                      to: "/arena/$sessionId",
+                      params: { sessionId },
+                      search: { autostart: true, play: false },
+                    }),
+                  )
+                  .catch((err) => {
+                    toast.error(err instanceof Error ? err.message : "Could not deal a floor");
+                    setDealing(false);
+                  });
+              }}
+            >
+              <Dices className="size-4" />
+              {dealing ? "Casting…" : "Random floor"}
+            </Button>
             <Link
               to="/setup"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-lime px-4 py-2 text-sm font-medium text-lime-ink transition-transform active:scale-[0.96]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line bg-panel-2 px-4 py-2 text-sm text-fg"
             >
               Set the floor
               <ArrowRight className="size-4" />
@@ -52,6 +89,9 @@ function Floor() {
               Public board
             </Link>
           </div>
+          <p className="mt-3 max-w-xl text-sm text-muted">
+            Random floor casts two opponents, turns on house voices, and starts a public debate. Portraits land while they talk.
+          </p>
         </div>
       </section>
 
