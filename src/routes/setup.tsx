@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { primeAudio } from "@/lib/arena/client-stream";
 import { HOUSE_ID, MODE_META, TOPIC_PRESETS } from "@/lib/arena/cast";
 import { dealRandomFloor } from "@/lib/arena/deal";
-import { createSessionFn, deleteSetupFn, getSetupData, paintBackdropFn, saveSetupFn, stageShowdownFn } from "@/lib/arena/functions";
+import { createSessionFn, deleteSetupFn, getSetupData, paintBackdropFn, quickCharacterFn, quickStartFn, saveSetupFn, stageShowdownFn } from "@/lib/arena/functions";
 import { toSnapshot } from "@/lib/arena/snapshot";
 import type { Mode, StageDesign } from "@/lib/arena/types";
 import { MODES } from "@/lib/arena/types";
@@ -48,11 +48,66 @@ function Stage() {
   const [cardId, setCardId] = useState("");
   const [cardName, setCardName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [quickPrompt, setQuickPrompt] = useState("");
+  const [quickTopic, setQuickTopic] = useState("Open discussion");
+  const [quickCast, setQuickCast] = useState(characters);
+  const [quickSelected, setQuickSelected] = useState<string[]>(characters.slice(0, 2).map((character) => character.id));
 
   const characterA = characters.find((c) => c.id === charA);
   const characterB = characters.find((c) => c.id === charB);
   const providerA = providers.find((p) => p.id === provA);
   const providerB = providers.find((p) => p.id === provB);
+  const quickCharacters = quickCast.filter((character) => quickSelected.includes(character.id)).slice(0, 4);
+
+  async function createQuickPersona() {
+    if (!quickPrompt.trim()) return;
+    setBusy("persona");
+    try {
+      const character = await quickCharacterFn({ data: { prompt: quickPrompt } });
+      setQuickCast((current) => [character, ...current.filter((item) => item.id !== character.id)]);
+      setQuickSelected((current) => [character.id, ...current.filter((id) => id !== character.id)].slice(0, 4));
+      setQuickPrompt("");
+      toast.success(`${character.name} joined the cast`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create that voice");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function quickLaunch() {
+    const cast = [...quickCharacters];
+    if (cast.length < 2 || !house) {
+      toast.error("Choose at least two saved voices, or create one to join the cast.");
+      return;
+    }
+    primeAudio();
+    setBusy("quick-launch");
+    try {
+      const agents = cast.slice(0, 4).map((character) => toSnapshot(character, house));
+      const session = await quickStartFn({
+        data: {
+          topic: quickTopic.trim() || "Open discussion",
+          mode: "freeform",
+          title: quickTopic.trim() || "Open discussion",
+          agentA: agents[0]!,
+          agentB: agents[1]!,
+          agents,
+          maxExchanges,
+          tokenBudget,
+          speedMs,
+          maxMinutes,
+          allowConclusion,
+          isPublic: true,
+          design: null,
+        },
+      });
+      await navigate({ to: "/arena/$sessionId", params: { sessionId: session.id }, search: { autostart: true, play: false } });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open the Echo Chamber");
+      setBusy(null);
+    }
+  }
 
   const keyNote = useMemo(() => {
     if (!hydrated) return null;
@@ -108,6 +163,7 @@ function Stage() {
       toast.error("Give each side a different character, or duplicate one in the studio first.");
       return;
     }
+    primeAudio();
     setBusy("launch");
     try {
       const session = await createSessionFn({
@@ -207,6 +263,57 @@ function Stage() {
           Choose the mode, the question, and who walks out. House Grok can play either side with no key.
         </p>
       </div>
+
+      <Panel className="space-y-5 border-lime/40 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium tracking-widest text-lime">ECHO CHAMBER</p>
+            <h2 className="mt-1 font-display text-2xl font-bold">Drop in. Listen in.</h2>
+            <p className="mt-1 max-w-xl text-sm text-muted">Spin up a voice from one line, add two to four saved characters, and let the conversation find its shape.</p>
+          </div>
+          <Pill tone="lime">House voice on by default</Pill>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <Field label="Create a character from one line" hint="Try “Stoner Johnny” or “Liberal Jake”. The house director saves the persona to your cast.">
+            <TextInput value={quickPrompt} onChange={(event) => setQuickPrompt(event.target.value)} placeholder="A one-line persona…" maxLength={120} />
+          </Field>
+          <div className="flex items-end">
+            <Button disabled={busy !== null || !quickPrompt.trim()} onClick={() => void createQuickPersona()}>
+              {busy === "persona" ? "Creating voice…" : "Create voice"}
+            </Button>
+          </div>
+        </div>
+        <Field label="Topic" hint="Leave it as Open discussion to let the characters choose their direction.">
+          <TextInput value={quickTopic} onChange={(event) => setQuickTopic(event.target.value)} placeholder="Open discussion" maxLength={200} />
+        </Field>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Saved cast <span className="text-muted">· choose 2–4 voices</span></legend>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {quickCast.map((character) => {
+              const checked = quickSelected.includes(character.id);
+              return (
+                <label key={character.id} className="flex min-h-12 items-center gap-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={!checked && quickSelected.length >= 4}
+                    onChange={(event) => setQuickSelected((current) => event.target.checked
+                      ? [...current, character.id].slice(0, 4)
+                      : current.filter((id) => id !== character.id))}
+                  />
+                  <span className="min-w-0"><span className="block truncate font-medium">{character.name}</span><span className="block truncate text-xs text-muted">{character.role}</span></span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button tone="lime" disabled={busy !== null || quickCharacters.length < 2} onClick={() => void quickLaunch()} className="px-6">
+            {busy === "quick-launch" ? "Opening…" : "Start listening"}
+          </Button>
+          <span className="text-xs text-muted">Short turns · house voice playback · audience questions and mic input on the floor</span>
+        </div>
+      </Panel>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MODES.map((item) => (

@@ -278,7 +278,9 @@ function tokenIdentityKey(token: string): string {
             .digest("base64url");
         }
       }
-    } catch {}
+    } catch {
+      // Invalid claims use the stable token hash fallback below.
+    }
   }
   return createHash("sha256").update(token).digest("base64url");
 }

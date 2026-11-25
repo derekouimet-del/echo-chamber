@@ -122,14 +122,19 @@ function mapCharacter(row: Row): Character {
 }
 
 function mapSession(row: Row): Session {
+  const agentA = parseJson<AgentSnapshot>(row.agent_a, emptyAgent());
+  const agentB = parseJson<AgentSnapshot>(row.agent_b, emptyAgent());
+  const savedAgents = parseJson<AgentSnapshot[]>(row.participants, []);
+  const agents = savedAgents.length >= 2 ? savedAgents.slice(0, 4) : [agentA, agentB];
   return {
     id: str(row.id),
     title: str(row.title),
     topic: str(row.topic),
     mode: asMode(str(row.mode)),
     status: asStatus(str(row.status)),
-    agentA: parseJson<AgentSnapshot>(row.agent_a, emptyAgent()),
-    agentB: parseJson<AgentSnapshot>(row.agent_b, emptyAgent()),
+    agentA: agents[0] ?? agentA,
+    agentB: agents[1] ?? agentB,
+    agents,
     maxExchanges: num(row.max_exchanges, 8),
     tokenBudget: num(row.token_budget, 12000),
     tokensUsed: num(row.tokens_used, 0),
@@ -157,7 +162,10 @@ function mapMessage(row: Row): TurnMessage {
   return {
     id: str(row.id),
     sessionId: str(row.session_id),
-    speaker: speaker === "a" || speaker === "b" || speaker === "director" || speaker === "system" ? speaker : "system",
+    speaker:
+      speaker === "a" || speaker === "b" || speaker === "c" || speaker === "d" || speaker === "user" || speaker === "director" || speaker === "system"
+        ? speaker
+        : "system",
     content: str(row.content),
     tokens: num(row.tokens, 0),
     createdAt: iso(row.created_at) ?? new Date().toISOString(),
@@ -430,12 +438,16 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
   const id = nid();
   const topic = input.topic.trim().slice(0, 2000);
   if (!topic) throw new Error("A topic is required.");
-  if (!input.agentA?.name || !input.agentB?.name) throw new Error("Both agents need a character.");
+  const agents = (input.agents?.length ? input.agents : [input.agentA, input.agentB]).slice(0, 4);
+  if (agents.length < 2 || agents.some((agent) => !agent?.name)) {
+    throw new Error("Choose at least two characters for the floor.");
+  }
+  const [agentA, agentB] = agents;
   const design = input.design;
   const title = (input.title || design?.title || topic).slice(0, 180);
   await sql`
     insert into sessions (
-      id, title, topic, mode, status, agent_a, agent_b, max_exchanges, token_budget,
+      id, title, topic, mode, status, agent_a, agent_b, participants, max_exchanges, token_budget,
       speed_ms, max_minutes, elapsed_ms, resumed_at, allow_conclusion, is_public, design, started_at
     ) values (
       ${id},
@@ -443,8 +455,9 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
       ${topic},
       ${input.mode},
       'live',
-      ${JSON.stringify(input.agentA)},
-      ${JSON.stringify(input.agentB)},
+      ${JSON.stringify(agentA)},
+      ${JSON.stringify(agentB)},
+      ${JSON.stringify(agents)},
       ${clamp(Math.round(input.maxExchanges), 2, 24)},
       ${clamp(Math.round(input.tokenBudget), 500, 200000)},
       ${clamp(Math.round(input.speedMs), 0, 15000)},
@@ -595,7 +608,7 @@ export async function releaseTurn(sessionId: string, status: SessionStatus): Pro
 
 export async function commitTurn(input: {
   sessionId: string;
-  speaker: "a" | "b";
+  speaker: "a" | "b" | "c" | "d";
   content: string;
   tokens: number;
 }): Promise<{ message: TurnMessage; session: Session; stop: boolean; reason: string | null }> {
@@ -677,13 +690,17 @@ export async function saveDesign(id: string, design: StageDesign): Promise<Sessi
 
 export async function applyVisuals(
   id: string,
-  visuals: { portraitA?: string | null; portraitB?: string | null; backdropUrl?: string | null },
+  visuals: { portraits?: (string | null)[]; portraitA?: string | null; portraitB?: string | null; backdropUrl?: string | null },
 ): Promise<Session> {
   const sql = await getSql();
   const session = await getSession(id);
   if (!session) throw new Error("Session not found.");
-  const agentA = { ...session.agentA, portraitUrl: visuals.portraitA || session.agentA.portraitUrl };
-  const agentB = { ...session.agentB, portraitUrl: visuals.portraitB || session.agentB.portraitUrl };
+  const agents = session.agents.map((agent, index) => ({
+    ...agent,
+    portraitUrl: visuals.portraits?.[index] || (index === 0 ? visuals.portraitA : index === 1 ? visuals.portraitB : null) || agent.portraitUrl,
+  }));
+  const agentA = agents[0]!;
+  const agentB = agents[1]!;
   const design = session.design
     ? { ...session.design, backdropUrl: visuals.backdropUrl || session.design.backdropUrl }
     : session.design;
@@ -691,6 +708,7 @@ export async function applyVisuals(
     update sessions set
       agent_a = ${JSON.stringify(agentA)},
       agent_b = ${JSON.stringify(agentB)},
+      participants = ${JSON.stringify(agents)},
       design = ${design ? JSON.stringify(design) : null},
       updated_at = now()
     where id = ${id}
@@ -756,6 +774,7 @@ export async function rematchSession(id: string): Promise<Session> {
     title: session.design?.title || session.title,
     agentA: session.agentA,
     agentB: session.agentB,
+    agents: session.agents,
     maxExchanges: session.maxExchanges,
     tokenBudget: session.tokenBudget,
     speedMs: session.speedMs,

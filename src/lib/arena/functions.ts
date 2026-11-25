@@ -183,6 +183,9 @@ export const getSetupData = createServerFn({ method: "GET" }).handler(async () =
 export const createSessionFn = createServerFn({ method: "POST" })
   .validator((input: CreateSessionInput) => {
     if (!input?.topic?.trim()) throw new Error("A topic is required.");
+    if (input.agents && (input.agents.length < 2 || input.agents.length > 4)) {
+      throw new Error("Choose between two and four voices.");
+    }
     return input;
   })
   .handler(async ({ data }) => {
@@ -222,13 +225,37 @@ export const deleteSessionFn = createServerFn({ method: "POST" })
 
 export const interveneFn = createServerFn({ method: "POST" })
   .validator((input: { sessionId: string; note: string }) => {
-    if (!input.note?.trim()) throw new Error("Write a note for the floor.");
+    if (!input.note?.trim()) throw new Error("Write a question for the floor.");
     return input;
   })
   .handler(async ({ data }) => {
     const { addMessage } = await import("./store.server");
-    return addMessage(data.sessionId, "director", data.note.trim().slice(0, 2000));
+    return addMessage(data.sessionId, "user", data.note.trim().slice(0, 500));
   });
+
+export const quickCharacterFn = createServerFn({ method: "POST" })
+  .validator((input: { prompt: string }) => {
+    if (!input.prompt?.trim()) throw new Error("Describe a character in a few words.");
+    return { prompt: input.prompt.trim().slice(0, 120) };
+  })
+  .handler(async ({ data }) => {
+    const { createQuickCharacter } = await import("./director.server");
+    return createQuickCharacter(data.prompt);
+  });
+
+export const quickStartFn = createServerFn({ method: "POST" })
+  .validator((input: CreateSessionInput) => {
+    if (!input?.topic?.trim()) throw new Error("A topic is required.");
+    const agents = input.agents ?? [input.agentA, input.agentB];
+    if (agents.length < 2 || agents.length > 4) throw new Error("Choose between two and four voices.");
+    return input;
+  })
+  .handler(async ({ data }) => {
+    const { createSession } = await import("./store.server");
+    return createSession(data);
+  });
+
+export const audienceMessageFn = interveneFn;
 
 export const advanceTurnFn = createServerFn({ method: "POST" })
   .validator((input: { sessionId: string; keys?: Record<string, string> }) => input)

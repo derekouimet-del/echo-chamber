@@ -27,7 +27,7 @@ export const useVault = create<Vault>()(
       keys: {},
       elevenKey: "",
       openaiTtsKey: "",
-      voiceOn: false,
+      voiceOn: true,
       defaultExchanges: 8,
       defaultBudget: 12000,
       defaultSpeed: 900,
@@ -45,7 +45,13 @@ export const useVault = create<Vault>()(
       setVoiceOn: (voiceOn) => set({ voiceOn }),
       setDefaults: (patch) => set(patch),
     }),
-    { name: "dyad-vault" },
+    {
+      name: "dyad-vault",
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<Vault>;
+        return { ...current, ...saved, voiceOn: saved.voiceOn ?? true };
+      },
+    },
   ),
 );
 

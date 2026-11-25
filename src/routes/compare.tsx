@@ -122,14 +122,15 @@ function Column({ bundle }: { bundle: { session: Session; messages: TurnMessage[
 }
 
 function who(message: TurnMessage, session: Session): string {
-  if (message.speaker === "a") return session.agentA.name;
-  if (message.speaker === "b") return session.agentB.name;
+  const index = ["a", "b", "c", "d"].indexOf(message.speaker);
+  if (index >= 0) return session.agents[index]?.name ?? "Contestant";
+  if (message.speaker === "user") return "Audience";
   if (message.speaker === "director") return "Director";
   return "Floor";
 }
 
 function speakerClass(speaker: TurnMessage["speaker"]): string {
-  if (speaker === "a") return "font-medium text-tide";
-  if (speaker === "b") return "font-medium text-ember";
+  if (speaker === "a" || speaker === "c") return "font-medium text-tide";
+  if (speaker === "b" || speaker === "d") return "font-medium text-ember";
   return "font-medium text-lime";
 }

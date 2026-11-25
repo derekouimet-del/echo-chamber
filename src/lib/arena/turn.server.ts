@@ -2,7 +2,15 @@ import { safeError } from "@/lib/utils";
 import { streamChat, type LlmCall } from "./llm.server";
 import { personaPrompt, turnUserPrompt } from "./prompts";
 import { addMessage, claimTurn, clockMs, closeForClock, commitTurn, getMessages, memoriesFor, releaseTurn } from "./store.server";
-import type { TurnResult } from "./types";
+import type { AgentSpeaker, TurnResult } from "./types";
+
+const SPEAKERS: AgentSpeaker[] = ["a", "b", "c", "d"];
+
+function capTurn(text: string, maxWords = 65): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return text.trim();
+  return `${words.slice(0, maxWords).join(" ").replace(/[.,;:!?]?$/, "")}.`;
+}
 
 export type TurnRequest = {
   sessionId: string;
@@ -13,7 +21,7 @@ export async function executeTurn(
   input: TurnRequest,
   onDelta: (chunk: string) => void,
   signal?: AbortSignal,
-  onSpeaker?: (side: "a" | "b") => void,
+  onSpeaker?: (side: AgentSpeaker) => void,
 ): Promise<TurnResult> {
   if (!input.sessionId) {
     return { stop: true, reason: "bad-request", message: null, session: null, error: "Missing session." };
@@ -22,14 +30,15 @@ export async function executeTurn(
   if (!session) {
     return { stop: true, reason: "not-live", message: null, session: null };
   }
-  const side: "a" | "b" = session.exchangeCount % 2 === 0 ? "a" : "b";
+  const speaker = SPEAKERS[session.exchangeCount % session.agents.length] ?? "a";
   if (session.maxMinutes > 0 && clockMs(session) >= session.maxMinutes * 60_000) {
     const closed = await closeForClock(session.id);
     return { stop: true, reason: "clock", message: closed.message, session: closed.session };
   }
-  onSpeaker?.(side);
-  const agent = side === "a" ? session.agentA : session.agentB;
-  const other = side === "a" ? session.agentB : session.agentA;
+  onSpeaker?.(speaker);
+  const agentIndex = SPEAKERS.indexOf(speaker);
+  const agent = session.agents[agentIndex] ?? session.agentA;
+  const others = session.agents.filter((_, index) => index !== agentIndex);
   const secret = agent.provider.kind === "house" ? undefined : input.keys?.[agent.provider.id];
   const timeout = AbortSignal.timeout(70_000);
   try {
@@ -48,19 +57,19 @@ export async function executeTurn(
       model: agent.provider.model,
       apiKey: secret,
       temperature: agent.provider.temperature,
-      maxTokens: agent.provider.maxTokens,
+      maxTokens: Math.min(agent.provider.maxTokens, 180),
       extra: agent.provider.extra,
       messages: [
-        { role: "system", content: personaPrompt(agent, other, session, memories) },
-        { role: "user", content: turnUserPrompt(messages, session, side, agent.provider.contextTurns) },
+        { role: "system", content: personaPrompt(agent, others, session, memories) },
+        { role: "user", content: turnUserPrompt(messages, session, speaker, agent.provider.contextTurns) },
       ],
     };
     const linked = signal ? AbortSignal.any([signal, timeout]) : timeout;
     const result = await streamChat(llm, onDelta, linked);
     const committed = await commitTurn({
       sessionId: session.id,
-      speaker: side,
-      content: result.text,
+      speaker,
+      content: capTurn(result.text),
       tokens: result.tokens,
     });
     return {

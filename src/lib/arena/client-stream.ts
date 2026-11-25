@@ -1,5 +1,5 @@
 import { previewPathPrefix } from "@/lib/preview-path-prefix";
-import type { TurnMessage, TurnResult } from "./types";
+import type { AgentSpeaker, TurnMessage, TurnResult } from "./types";
 import { advanceTurnFn } from "./functions";
 
 export function apiUrl(path: string): string {
@@ -9,7 +9,7 @@ export function apiUrl(path: string): string {
 }
 
 export type StreamHandlers = {
-  onMeta?: (speaker: "a" | "b") => void;
+  onMeta?: (speaker: AgentSpeaker) => void;
   onDelta?: (chunk: string) => void;
 };
 
@@ -49,7 +49,7 @@ export async function streamTurn(
         }
         if (!data) continue;
         const json = JSON.parse(data) as {
-          speaker?: "a" | "b";
+          speaker?: AgentSpeaker;
           text?: string;
           error?: string;
           stop?: boolean;
@@ -76,7 +76,7 @@ export async function streamTurn(
     return (
       result ?? { stop: true, reason: "empty", message: null, session: null, error: "The stream ended early." }
     );
-  } catch (err) {
+  } catch {
     if (signal?.aborted) {
       return { stop: true, reason: "aborted", message: null, session: null };
     }

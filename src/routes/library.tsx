@@ -46,12 +46,8 @@ function Library() {
               </div>
               <h2 className="mt-2 font-display text-xl font-bold">{session.title}</h2>
               <p className="text-sm text-muted">{session.topic}</p>
-              <p className="mt-1 text-sm">
-                <span className="text-tide">{session.agentA.name}</span>
-                <span className="text-muted"> · {session.agentA.provider.model} </span>
-                <span className="text-muted">vs </span>
-                <span className="text-ember">{session.agentB.name}</span>
-                <span className="text-muted"> · {session.agentB.provider.model}</span>
+              <p className="mt-1 text-sm text-muted">
+                {session.agents.map((agent) => `${agent.name} · ${agent.provider.model}`).join("  /  ")}
               </p>
               {session.summary ? <p className="mt-2 text-sm">{session.summary}</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -130,7 +126,7 @@ function groupByTopic(sessions: Session[]) {
   }
   return [...map.entries()]
     .filter(([, rows]) => rows.length > 1)
-    .map(([topic, rows]) => ({ topic: rows[0]!.topic, sessions: rows }));
+    .map(([_topic, rows]) => ({ topic: rows[0]!.topic, sessions: rows }));
 }
 
 function exportText(session: Session, messages: TurnMessage[]) {
@@ -139,7 +135,8 @@ function exportText(session: Session, messages: TurnMessage[]) {
     session.topic,
     "",
     ...messages.map((m) => {
-      const name = m.speaker === "a" ? session.agentA.name : m.speaker === "b" ? session.agentB.name : m.speaker;
+      const index = ["a", "b", "c", "d"].indexOf(m.speaker);
+      const name = index >= 0 ? session.agents[index]?.name ?? "Contestant" : m.speaker === "user" ? "Audience" : m.speaker;
       return `${name}\n${m.content}\n`;
     }),
   ].join("\n");

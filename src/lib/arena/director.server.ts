@@ -1,6 +1,7 @@
 import type { Character, CharacterDraft, StageDesign } from "./types";
 import { houseImage, houseJson } from "./llm.server";
-import { applyVisuals, getCharacter, getMessages, getSession, memoriesFor, saveAnalysis, setPortrait } from "./store.server";
+import { labelSpeaker } from "./prompts";
+import { applyVisuals, getCharacter, getMessages, getSession, memoriesFor, saveAnalysis, saveCharacter, setPortrait } from "./store.server";
 
 const PERSONA_KEYS = [
   "name",
@@ -34,7 +35,7 @@ export async function authorPersona(input: {
 }): Promise<Partial<CharacterDraft>> {
   const seed = input.seed;
   const system =
-    "You invent fictional personalities for a two-agent arena. Return only a JSON object with keys name, role, personality, perspective, style, background, emotion, domains, motivation, objective, constraints. Specific, adult, non-generic. No markdown.";
+    "You invent fictional personalities for a conversational arena. Return only a JSON object with keys name, role, personality, perspective, style, background, emotion, domains, motivation, objective, constraints. Specific, adult, non-generic. No markdown.";
   const user = [
     `Mode: ${input.mode}.`,
     input.brief?.trim() ? `Brief: ${input.brief.trim().slice(0, 600)}` : "",
@@ -57,6 +58,29 @@ export async function authorPersona(input: {
     .join("\n");
   const json = await houseJson(system, user, 600);
   return asPersona(json, "New contestant");
+}
+
+export async function createQuickCharacter(prompt: string): Promise<Character> {
+  const persona = await authorPersona({ mode: "fresh", brief: prompt.slice(0, 120) });
+  const name = persona.name?.trim() || prompt.trim().slice(0, 40) || "New voice";
+  return saveCharacter({
+    id: crypto.randomUUID(),
+    name,
+    role: persona.role ?? "Independent thinker",
+    personality: persona.personality ?? "Curious and direct",
+    perspective: persona.perspective ?? "Pragmatic",
+    style: persona.style ?? "Clear and concise",
+    background: persona.background ?? "A fictional voice shaped by the audience prompt.",
+    emotion: persona.emotion ?? "Even-tempered",
+    domains: persona.domains ?? "The discussion at hand",
+    motivation: persona.motivation ?? "Make one useful point at a time",
+    objective: persona.objective ?? "Explore the topic with the other voices",
+    constraints: persona.constraints ?? "Stay respectful, specific, and brief.",
+    voiceProvider: "house",
+    voiceId: "eve",
+    favorite: false,
+    template: false,
+  });
 }
 
 export async function stageShowdown(input: {
@@ -112,19 +136,14 @@ export async function paintBackdrop(design: StageDesign, topic: string): Promise
 export async function dressSession(sessionId: string) {
   const session = await getSession(sessionId);
   if (!session) throw new Error("Session not found.");
-  const [paintedA, paintedB] = await Promise.all([
-    session.agentA.characterId ? paintPortrait(session.agentA.characterId).catch(() => null) : Promise.resolve(null),
-    session.agentB.characterId ? paintPortrait(session.agentB.characterId).catch(() => null) : Promise.resolve(null),
-  ]);
+  const portraits = await Promise.all(session.agents.map((agent) =>
+    agent.characterId ? paintPortrait(agent.characterId).then((character) => character.portraitUrl).catch(() => null) : Promise.resolve(null),
+  ));
   let backdrop: string | null = null;
   if (session.design) {
     backdrop = await paintBackdrop(session.design, session.topic).catch(() => null);
   }
-  return applyVisuals(sessionId, {
-    portraitA: paintedA?.portraitUrl ?? null,
-    portraitB: paintedB?.portraitUrl ?? null,
-    backdropUrl: backdrop,
-  });
+  return applyVisuals(sessionId, { portraits, backdropUrl: backdrop });
 }
 
 export async function analyzeSession(sessionId: string) {
@@ -133,13 +152,12 @@ export async function analyzeSession(sessionId: string) {
   const messages = await getMessages(sessionId);
   const transcript = messages
     .map((m) => {
-      const who = m.speaker === "a" ? session.agentA.name : m.speaker === "b" ? session.agentB.name : m.speaker;
-      return `${who}: ${m.content}`;
+      return `${labelSpeaker(m.speaker, session)}: ${m.content}`;
     })
     .join("\n\n")
     .slice(0, 14000);
   const system =
-    "You analyze a two-agent session. Return only JSON with keys summary, agreements, disagreements, conclusion. Each value is 1-3 sentences of plain prose. No markdown.";
+    "You analyze a multi-voice session. Return only JSON with keys summary, agreements, disagreements, conclusion. Each value is 1-3 sentences of plain prose. No markdown.";
   const json = (await houseJson(
     system,
     `Mode: ${session.mode}\nTopic: ${session.topic}\n\n${transcript || "(empty)"}`,
@@ -158,30 +176,27 @@ export async function distillSession(sessionId: string) {
   const session = await getSession(sessionId);
   if (!session) throw new Error("Session not found.");
   const messages = await getMessages(sessionId);
+  const speakers = ["a", "b", "c", "d"].slice(0, session.agents.length);
   const transcript = messages
-    .filter((m) => m.speaker === "a" || m.speaker === "b")
-    .map((m) => `${m.speaker === "a" ? session.agentA.name : session.agentB.name}: ${m.content}`)
+    .filter((message) => speakers.includes(message.speaker))
+    .map((message) => `${labelSpeaker(message.speaker, session)}: ${message.content}`)
     .join("\n\n")
     .slice(0, 12000);
-  const system =
-    "Extract durable memories. Return only JSON: {\"a\": [string, string], \"b\": [string, string]}. Each string is one sentence this character would remember later. No markdown.";
-  const json = (await houseJson(system, transcript || "No transcript.", 400)) as {
-    a?: unknown;
-    b?: unknown;
-  };
+  const schema = speakers.map((speaker) => `"${speaker}": [string, string]`).join(", ");
+  const system = `Extract durable memories for each character. Return only JSON: {${schema}}. Each string is one sentence that character would remember later. No markdown.`;
+  const json = (await houseJson(system, transcript || "No transcript.", 450)) as Record<string, unknown>;
   const list = (value: unknown) =>
-    Array.isArray(value) ? value.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean).slice(0, 3) : [];
+    Array.isArray(value) ? value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 3) : [];
   const { addMemory } = await import("./store.server");
   const saved = [];
-  if (session.agentA.characterId) {
-    for (const content of list(json.a)) {
-      saved.push(await addMemory({ characterId: session.agentA.characterId, kind: "session", content, sessionId }));
+  for (const [index, agent] of session.agents.entries()) {
+    if (!agent.characterId) continue;
+    for (const content of list(json[speakers[index]!])) {
+      saved.push(await addMemory({ characterId: agent.characterId, kind: "session", content, sessionId }));
     }
   }
-  if (session.agentB.characterId) {
-    for (const content of list(json.b)) {
-      saved.push(await addMemory({ characterId: session.agentB.characterId, kind: "session", content, sessionId }));
-    }
-  }
-  return { saved: saved.length, a: session.agentA.characterId ? await memoriesFor(session.agentA.characterId) : [], b: session.agentB.characterId ? await memoriesFor(session.agentB.characterId) : [] };
+  const memories = await Promise.all(session.agents.map((agent) =>
+    agent.characterId ? memoriesFor(agent.characterId) : Promise.resolve([]),
+  ));
+  return { saved: saved.length, agents: memories, a: memories[0] ?? [], b: memories[1] ?? [] };
 }

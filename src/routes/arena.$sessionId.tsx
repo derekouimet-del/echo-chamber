@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Download, Pause, Play, RotateCcw, Square, Volume2 } from "lucide-react";
+import { Download, Mic, MicOff, Pause, Play, RotateCcw, Square, Volume2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { playSpeech, streamTurn } from "@/lib/arena/client-stream";
@@ -7,15 +7,29 @@ import {
   analyzeFn,
   distillFn,
   getSessionBundle,
-  interveneFn,
+  audienceMessageFn,
   rematchFn,
   setStatusFn,
 } from "@/lib/arena/functions";
 import { MODE_META } from "@/lib/arena/cast";
-import type { Session, TurnMessage } from "@/lib/arena/types";
+import type { AgentSpeaker, Session, TurnMessage } from "@/lib/arena/types";
 import { useVault } from "@/lib/arena/vault";
 import { formatWhen } from "@/lib/utils";
 import { Button, Panel, Pill, TextArea } from "@/components/ui";
+
+type RecognitionResult = ArrayLike<{ transcript: string; isFinal?: boolean }>;
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: { results: ArrayLike<RecognitionResult> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type SpeechWindow = Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
 
 export const Route = createFileRoute("/arena/$sessionId")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -32,15 +46,18 @@ function Arena() {
   const navigate = useNavigate();
   const [session, setSession] = useState(data.session);
   const [messages, setMessages] = useState(data.messages);
-  const [draft, setDraft] = useState<{ speaker: "a" | "b"; text: string } | null>(null);
+  const [draft, setDraft] = useState<{ speaker: AgentSpeaker; text: string } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [listening, setListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const [shown, setShown] = useState(search.play ? 0 : data.messages.length);
   const [now, setNow] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const runRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const sessionRef = useRef(session);
   const booted = useRef(false);
   sessionRef.current = session;
@@ -115,21 +132,20 @@ function Arena() {
         .then((fresh) => {
           setSession((prev) => {
             if (prev.id !== id) return prev;
-            const portraitA = fresh.session.agentA.portraitUrl;
-            const portraitB = fresh.session.agentB.portraitUrl;
+            const agents = fresh.session.agents;
             const backdrop = fresh.session.design?.backdropUrl ?? null;
             if (
-              portraitA === prev.agentA.portraitUrl &&
-              portraitB === prev.agentB.portraitUrl &&
+              agents.every((agent, index) => agent.portraitUrl === prev.agents[index]?.portraitUrl) &&
               (prev.design?.backdropUrl ?? null) === backdrop
             ) {
               return prev;
             }
             return {
               ...prev,
+              agents,
+              agentA: agents[0] ?? prev.agentA,
+              agentB: agents[1] ?? prev.agentB,
               design: prev.design ? { ...prev.design, backdropUrl: backdrop } : fresh.session.design,
-              agentA: { ...prev.agentA, portraitUrl: portraitA },
-              agentB: { ...prev.agentB, portraitUrl: portraitB },
             };
           });
         })
@@ -144,7 +160,7 @@ function Arena() {
     runRef.current = controller;
     setRunning(true);
     setError(null);
-    const speakerRef = { current: "a" as "a" | "b" };
+    const speakerRef = { current: "a" as AgentSpeaker };
     try {
       await speakColdOpen(sessionRef.current);
       while (!controller.signal.aborted) {
@@ -214,17 +230,79 @@ function Arena() {
     void runLoop();
   }
 
-  async function intervene() {
-    if (!note.trim()) return;
+  async function submitAudienceQuestion(text: string) {
+    if (!text.trim()) return;
+    if (session.status === "completed") {
+      setSpeechError("This floor has ended. Start a new conversation to ask another question.");
+      return;
+    }
     setBusy("note");
+    setSpeechError(null);
     try {
-      const message = await interveneFn({ data: { sessionId: session.id, note } });
+      const message = await audienceMessageFn({ data: { sessionId: session.id, note: text.trim() } });
       setMessages((prev) => [...prev, message]);
       setNote("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not intervene");
+      toast.error(err instanceof Error ? err.message : "Could not send your question");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function intervene() {
+    await submitAudienceQuestion(note);
+  }
+
+  function toggleListening() {
+    const speechWindow = window as SpeechWindow;
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setSpeechError("Speech recognition is not supported in this browser. You can still type a question.");
+      return;
+    }
+    if (listening) {
+      const recognition = recognitionRef.current;
+      recognitionRef.current = null;
+      setListening(false);
+      try {
+        recognition?.stop();
+      } catch {
+        setSpeechError("Microphone stopped. You can type your question instead.");
+      }
+      return;
+    }
+    setSpeechError(null);
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      const results = Array.from(event.results);
+      const transcript = results.map((result) => result[0]?.transcript ?? "").join(" ").trim();
+      if (transcript) setNote(transcript);
+      if (results.some((result) => result[0]?.isFinal) && transcript) {
+        recognition.stop();
+        void submitAudienceQuestion(transcript);
+      }
+    };
+    recognition.onerror = (event) => {
+      setListening(false);
+      setSpeechError(event.error === "not-allowed"
+        ? "Microphone permission was denied. Allow microphone access or type your question."
+        : "Could not hear that. Try again or type your question.");
+    };
+    recognition.onend = () => {
+      setListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setListening(false);
+      setSpeechError("Microphone could not start. Try again or type your question.");
     }
   }
 
@@ -247,6 +325,9 @@ function Arena() {
   const clockLabel =
     session.maxMinutes > 0 ? `${formatClock(spent)} / ${formatClock(session.maxMinutes * 60_000)}` : formatClock(spent);
   const live = session.status === "live" || session.status === "thinking" || running;
+  const draftIndex = draft ? ["a", "b", "c", "d"].indexOf(draft.speaker) : -1;
+  const draftAgent = draftIndex >= 0 ? session.agents[draftIndex] : null;
+  const draftTone = draftIndex % 2 === 0 ? "tide" : "ember";
 
   return (
     <div className="space-y-4">
@@ -302,8 +383,18 @@ function Arena() {
       ) : null}
       {session.design?.stakes ? <p className="text-sm text-lime">{session.design.stakes}</p> : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[240px_1fr_240px]">
-        <Dossier agent={session.agentA} tone="tide" entrance={session.design?.aEntrance} speaking={draft?.speaker === "a"} />
+      <div className="space-y-4">
+        <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {session.agents.map((agent, index) => (
+            <Dossier
+              key={`${agent.characterId}-${index}`}
+              agent={agent}
+              tone={index % 2 === 0 ? "tide" : "ember"}
+              entrance={index === 0 ? session.design?.aEntrance : index === 1 ? session.design?.bEntrance : undefined}
+              speaking={draft?.speaker === (["a", "b", "c", "d"][index] as AgentSpeaker)}
+            />
+          ))}
+        </div>
         <Panel className="flex min-h-[60vh] flex-col">
           <div className="flex items-center justify-between border-b border-line px-4 py-3 text-xs text-muted">
             <span className="tabular-nums">
@@ -318,9 +409,9 @@ function Arena() {
               <Turn key={message.id} message={message} session={session} />
             ))}
             {draft ? (
-              <article className={draft.speaker === "a" ? "border-l-2 border-tide pl-4" : "border-l-2 border-ember pl-4"}>
-                <p className={`text-xs font-medium tracking-widest ${draft.speaker === "a" ? "text-tide" : "text-ember"}`}>
-                  {(draft.speaker === "a" ? session.agentA.name : session.agentB.name).toUpperCase()}
+              <article className={`border-l-2 pl-4 ${draftTone === "tide" ? "border-tide" : "border-ember"}`}>
+                <p className={`text-xs font-medium tracking-widest ${draftTone === "tide" ? "text-tide" : "text-ember"}`}>
+                  {(draftAgent?.name ?? "Contestant").toUpperCase()}
                 </p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">
                   {draft.text}
@@ -348,23 +439,31 @@ function Arena() {
             </div>
           ) : null}
           <div className="border-t border-line p-3">
+            <label htmlFor="audience-question" className="mb-2 block text-sm font-medium">Ask the room</label>
             <TextArea
+              id="audience-question"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Director's intervention. Both sides will see it on their next turn."
+              placeholder="Ask a question or add a thought for the next turn…"
               className="min-h-16"
+              maxLength={500}
             />
+            {speechError ? <p role="status" className="mt-2 text-xs text-ember">{speechError}</p> : null}
             <div className="mt-2 flex flex-wrap gap-2">
-              <Button disabled={busy !== null || !note.trim()} onClick={() => void intervene()}>
-                Send onto the floor
+              <Button disabled={busy !== null || !note.trim() || session.status === "completed"} onClick={() => void intervene()}>
+                {busy === "note" ? "Sending…" : "Send question"}
               </Button>
+              <Button type="button" aria-pressed={listening} onClick={toggleListening}>
+                {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+                {listening ? "Stop listening" : "Ask by voice"}
+              </Button>
+              <span aria-live="polite" className="sr-only">{listening ? "Listening for your question" : "Microphone inactive"}</span>
               {replaying ? (
                 <Button onClick={() => setShown(messages.length)}>Skip replay</Button>
               ) : null}
             </div>
           </div>
         </Panel>
-        <Dossier agent={session.agentB} tone="ember" entrance={session.design?.bEntrance} speaking={draft?.speaker === "b"} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -449,14 +548,17 @@ function Dossier({
   );
 }
 
+function agentForSpeaker(speaker: string, session: Session) {
+  const index = ["a", "b", "c", "d"].indexOf(speaker);
+  return index >= 0 ? session.agents[index] ?? null : null;
+}
+
 function Turn({ message, session }: { message: TurnMessage; session: Session }) {
-  const name =
-    message.speaker === "a" ? session.agentA.name : message.speaker === "b" ? session.agentB.name : message.speaker === "director" ? "Director" : "Floor";
-  const agent = message.speaker === "a" ? session.agentA : message.speaker === "b" ? session.agentB : null;
-  const tone =
-    message.speaker === "a" ? "border-tide" : message.speaker === "b" ? "border-ember" : "border-lime";
-  const color =
-    message.speaker === "a" ? "text-tide" : message.speaker === "b" ? "text-ember" : "text-lime";
+  const agent = agentForSpeaker(message.speaker, session);
+  const name = agent?.name ?? (message.speaker === "director" ? "Director" : message.speaker === "user" ? "Audience" : "Floor");
+  const index = ["a", "b", "c", "d"].indexOf(message.speaker);
+  const tone = index === 0 ? "border-tide" : index > 0 ? (index % 2 === 1 ? "border-ember" : "border-tide") : "border-lime";
+  const color = index === 0 ? "text-tide" : index > 0 ? (index % 2 === 1 ? "text-ember" : "text-tide") : "text-lime";
   return (
     <article className={`border-l-2 pl-4 ${tone}`}>
       <div className="flex items-center justify-between gap-3">
@@ -489,7 +591,7 @@ function Turn({ message, session }: { message: TurnMessage; session: Session }) 
 function keysFor(session: Session): Record<string, string> {
   const vault = useVault.getState().keys;
   const out: Record<string, string> = {};
-  for (const id of [session.agentA.provider.id, session.agentB.provider.id]) {
+  for (const id of session.agents.map((agent) => agent.provider.id)) {
     if (vault[id]) out[id] = vault[id];
   }
   return out;
@@ -499,7 +601,7 @@ async function speakColdOpen(session: Session) {
   if (!useVault.getState().voiceOn) return;
   const line = session.design?.coldOpen?.trim();
   if (!line) return;
-  const taken = new Set([session.agentA.voiceId, session.agentB.voiceId]);
+  const taken = new Set(session.agents.map((agent) => agent.voiceId));
   const voiceId = taken.has("eve") ? "sal" : "eve";
   try {
     await playSpeech({ text: line, voiceProvider: "house", voiceId });
@@ -510,7 +612,7 @@ async function speakColdOpen(session: Session) {
 
 async function maybeSpeak(message: TurnMessage, session: Session) {
   if (!useVault.getState().voiceOn) return;
-  const agent = message.speaker === "a" ? session.agentA : message.speaker === "b" ? session.agentB : null;
+  const agent = agentForSpeaker(message.speaker, session);
   if (!agent || agent.voiceProvider === "none") return;
   const vault = useVault.getState();
   try {
@@ -555,11 +657,10 @@ function download(session: Session, messages: TurnMessage[]) {
     session.title,
     session.topic,
     `${MODE_META[session.mode].label}`,
-    `${session.agentA.name} (${session.agentA.provider.name} / ${session.agentA.provider.model})`,
-    `${session.agentB.name} (${session.agentB.provider.name} / ${session.agentB.provider.model})`,
+    ...session.agents.map((agent) => `${agent.name} (${agent.provider.name} / ${agent.provider.model})`),
     "",
     ...messages.map((m) => {
-      const name = m.speaker === "a" ? session.agentA.name : m.speaker === "b" ? session.agentB.name : m.speaker;
+      const name = agentForSpeaker(m.speaker, session)?.name ?? (m.speaker === "user" ? "Audience" : m.speaker);
       return `${name}\n${m.content}\n`;
     }),
     session.summary ? `Summary\n${session.summary}\n` : "",

@@ -30,7 +30,8 @@ export type SessionStatus =
   | "completed"
   | "failed";
 
-export type Speaker = "a" | "b" | "director" | "system";
+export type AgentSpeaker = "a" | "b" | "c" | "d";
+export type Speaker = AgentSpeaker | "director" | "system" | "user";
 
 export type Provider = {
   id: string;
@@ -125,6 +126,7 @@ export type Session = {
   status: SessionStatus;
   agentA: AgentSnapshot;
   agentB: AgentSnapshot;
+  agents: AgentSnapshot[];
   maxExchanges: number;
   tokenBudget: number;
   tokensUsed: number;
@@ -172,6 +174,7 @@ export type CreateSessionInput = {
   title?: string;
   agentA: AgentSnapshot;
   agentB: AgentSnapshot;
+  agents?: AgentSnapshot[];
   maxExchanges: number;
   tokenBudget: number;
   speedMs: number;

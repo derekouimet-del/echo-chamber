@@ -18,7 +18,7 @@ const MODE_RULES: Record<Mode, string> = {
 
 export function personaPrompt(
   self: AgentSnapshot,
-  other: AgentSnapshot,
+  others: AgentSnapshot[],
   session: Session,
   memories: Memory[],
 ): string {
@@ -43,19 +43,21 @@ export function personaPrompt(
     "Long-term memory, isolated to you. Use it when it is relevant. Do not invent memories that are not listed.",
     memoryBlock,
     "",
-    `You share the floor with ${other.name}, ${other.role}. Their objective: ${other.objective}. Their perspective: ${other.perspective}.`,
+    `You share the floor with ${others.map((other) => `${other.name}, ${other.role} (objective: ${other.objective}; perspective: ${other.perspective})`).join("; ")}.`,
+    "Several distinct voices share this floor. Address the most recent speaker by name when it helps.",
     `Mode: ${MODE_META[session.mode].label}. ${MODE_RULES[session.mode]}`,
     `Topic: ${session.topic}`,
     design?.stakes ? `Stakes, as staged: ${design.stakes}` : "",
     design?.visualMotif ? `Atmosphere: ${design.visualMotif}` : "",
     "",
     "Rules of the floor:",
-    "- Speak only as yourself, in the first person, addressing the other person.",
+    "- Speak only as yourself, in the first person, addressing the latest speaker when useful.",
     "- No stage directions, no name labels, no markdown headings.",
-    "- 120 to 220 words unless a shorter strike is sharper. Never pad.",
+    "- Keep every turn to 35–55 words, with an absolute maximum of 65 words. Make one point only. Never pad.",
     "- Each turn must add a new claim, a precise rebuttal, a concession, a question, or a concrete proposal.",
     "- Do not repeat a paragraph you already delivered. Do not loop.",
-    "- You may quote the other person briefly in order to answer them.",
+    "- You may quote another speaker briefly in order to answer them.",
+    "- If the audience has asked a question, answer it directly in one short burst before continuing your objective.",
     session.allowConclusion
       ? "- If, and only if, a real conclusion, deal, or finished artifact has been reached, end with a final line that starts exactly with CONCLUSION: and one sentence. Otherwise never use that prefix."
       : "- Do not declare the session over. The director ends it.",
@@ -67,10 +69,10 @@ export function personaPrompt(
 export function turnUserPrompt(
   messages: TurnMessage[],
   session: Session,
-  side: "a" | "b",
+  side: "a" | "b" | "c" | "d",
   contextTurns: number,
 ): string {
-  const self = side === "a" ? session.agentA : session.agentB;
+  const self = session.agents[["a", "b", "c", "d"].indexOf(side)] ?? session.agentA;
   const recent = messages.slice(-Math.max(4, contextTurns));
   const lines = recent.map((m) => {
     if (m.speaker === side) return `YOU (${self.name}): ${m.content}`;
@@ -91,8 +93,9 @@ export function turnUserPrompt(
 }
 
 export function labelSpeaker(speaker: TurnMessage["speaker"], session: Session): string {
-  if (speaker === "a") return session.agentA.name;
-  if (speaker === "b") return session.agentB.name;
+  const index = ["a", "b", "c", "d"].indexOf(speaker);
+  if (index >= 0) return session.agents[index]?.name ?? "Contestant";
+  if (speaker === "user") return "Audience";
   if (speaker === "director") return "Director";
   return "Floor";
 }
